@@ -12,7 +12,7 @@ from typing import Union
 from scipy.spatial.distance import pdist, squareform
 
 
-def loci(data: np.ndarray, alpha: float = 0.5, k: int = 3,
+def run_loci(data: np.ndarray, alpha: float = 0.5, k: int = 3,
          method: str = "distance-matrix"):
     """Run the LOCI algorithm on the specified dataset.
 
@@ -30,7 +30,7 @@ def loci(data: np.ndarray, alpha: float = 0.5, k: int = 3,
         Default is 3 as per the paper. See the paper for full details.
     method: str, optional
         Determines how the distances and neighbourhood counts are computed.
-        Currently only supports
+        Currently only supports:
             - "distance-matrix", which uses the
                 scipy.spatial.distance.pdist function
     """
@@ -47,7 +47,7 @@ class LOCI(object):
     """Abstract class for the implementation of the LOCI outlier detection
     algorithm. This class should not be instanciated directly.
 
-    Use the loci method above to run the algorithm.
+    Use the run_loci function above to run the algorithm.
 
     This class should only be used as a parent class and the four
     required methods have to be implemented by the child classes.
