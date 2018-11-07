@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist, squareform
 
 
 def run_loci(data: np.ndarray, alpha: float = 0.5, k: int = 3,
-         method: str = "distance-matrix"):
+        method: str = "distance-matrix"):
     """Run the LOCI algorithm on the specified dataset.
 
     Runs the LOCI algorithm for the specified datset with the specified
@@ -30,12 +30,18 @@ def run_loci(data: np.ndarray, alpha: float = 0.5, k: int = 3,
         Default is 3 as per the paper. See the paper for full details.
     method: str, optional
         Determines how the distances and neighbourhood counts are computed.
-        Currently only supports:
+        Currently supports:
             - "distance-matrix", which uses the
                 scipy.spatial.distance.pdist function
+            - "distance-matrix-binary", same as "distance-matrix", but uses
+                a sorted distance matrix & binary search to find the
+                neighbourhood counts
     """
     if method == "distance-matrix":
         loci_i = LOCIMatrix(data, alpha, k)
+        loci_i.run()
+    elif method == "distance-matrix-binary":
+        loci_i = LOCIMatrixBinarySearch(data, alpha, k)
         loci_i.run()
     else:
         raise Exception("Invalid method specified.")
@@ -111,7 +117,7 @@ class LOCI(object):
         self._outlier_indices = np.array(outlier_indices)
         return True
 
-    def _get_critical_values(self, p_ix: int, r_max: float):
+    def _get_critical_values(self, p_ix: int, r_max: float, r_min: float = 0):
         """Returns the critical and alpha-critical as a
         sorted numpy array for the given point p.
         """
@@ -139,7 +145,7 @@ class LOCI(object):
 
 class LOCIMatrix(LOCI):
     """Child class of LOCI, implements the required methods using
-    a distance matrix computed in the constructor
+    a distance matrix computed in the constructor.
 
     Attributes
     ----------
@@ -151,10 +157,11 @@ class LOCIMatrix(LOCI):
         super().__init__(data, alpha, k)
 
         self._dist_matrix = squareform(pdist(self._data, metric="euclidean"))
+        self._sorted_dist_matrix = np.sort(self._dist_matrix, axis=1)
 
     def _get_critical_values(self, p_ix: int, r_max: float, r_min: float = 0):
         distances = self._dist_matrix[p_ix, :]
-        mask = distances > r_min
+        mask = (r_min < distances) & (distances <= r_max)
 
         return np.sort(
             np.concatenate((distances[mask], distances[mask] / self._alpha)))
@@ -174,3 +181,28 @@ class LOCIMatrix(LOCI):
 
     def _get_max_distance(self, data: np.ndarray):
         return self._dist_matrix.max()
+
+
+class LOCIMatrixBinarySearch(LOCIMatrix):
+    """Child class of LOCIMatrix, uses a sorted distance matrix and
+    binary search to get neighbourhood counts.
+
+    Attributes
+    ----------
+    _sorted_dist_matrix: np.ndarray
+        The distance matrix, sorted along the rows (i.e. the rows are sorted),
+        same shape as _dist_matrix
+    """
+
+    def __init__(self, data: np.ndarray, alpha: float = 0.5, k: int = 3):
+        super().__init__(data, alpha, k)
+
+        self._sorted_dist_matrix = np.sort(self._dist_matrix, axis=1)
+
+    def _get_alpha_n(self, indices: Union[int, np.ndarray], r):
+        indices = [indices] if type(indices) is int else indices
+
+        result = [np.searchsorted(self._sorted_dist_matrix[p_ix, :],
+                  [r * self._alpha], side="left")[0] + 1 for p_ix in indices]
+
+        return np.array(result)
